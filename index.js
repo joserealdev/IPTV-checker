@@ -1,61 +1,74 @@
+import axios from "axios";
 import fs from "fs";
-import fetch from "node-fetch";
 
-const FILE_PATH = "./list.txt";
+const FILE_PATH = "list.txt";
+const OUTPUT_DIR = "downloads2";
 
-const getUrls = () => {
-  const file = fs.readFileSync(FILE_PATH, "utf8");
-  if (!file) return;
-  const split = file.split("\n");
-  if (!split || split.length < 1) return;
-  return split;
-};
+fs.readFile(FILE_PATH, "utf8", async (err, data) => {
+  if (err) {
+    console.error(`Error reading file ${FILE_PATH}: ${err}`);
+    return;
+  }
 
-const normalizeUrls = (urls = [""]) => {
-  return urls.map((url) => {
-    const match = url.match(
-      /http:\/\/(.*)\/.*?(username=[a-zA-Z0-9._@-]+&password=[a-zA-Z0-9._@-]+)/
-    );
-    if (!match) {
-      console.log(url);
-      return url;
+  const urls = data.split("\n");
+  urls.forEach(async (urlStr, i) => {
+    const formattedUrl = formatURL(urlStr);
+    if (formattedUrl) {
+      const filePath = `./${OUTPUT_DIR}/list${i}.m3u`;
+      try {
+        await downloadFile(formattedUrl, filePath);
+        if (fileContainsEXTINF(filePath)) {
+          console.log(`Found: ${formattedUrl}`);
+        } else {
+          fs.unlinkSync(filePath);
+          console.log(`No content: ${formattedUrl}`);
+        }
+      } catch (error) {
+        fs.unlinkSync(filePath);
+        console.error(`Error donwloading ${formattedUrl}: ${error.message}`);
+      }
+    } else {
+      console.log(`No valid URL: ${urlStr}`);
     }
+  });
+});
+
+function formatURL(inputURL) {
+  const regex =
+    /http:\/\/(.*)\/.*?(username=[a-zA-Z0-9._@-]+&password=[a-zA-Z0-9._@-]+)/;
+
+  const match = inputURL.match(regex);
+  if (match) {
     const [, host, credentials] = match;
     return `http://${host}/get.php?${credentials}&type=m3u`;
-  });
-};
+  }
+  return inputURL;
+}
 
-const downloadFile = async (url, path) => {
-  const res = await fetch(url);
-  const fileStream = fs.createWriteStream(path);
+async function downloadFile(sourceURL, destFilePath) {
+  const writer = fs.createWriteStream(destFilePath);
+
+  const response = await axios({
+    url: sourceURL,
+    method: "GET",
+    responseType: "stream",
+    timeout: 10000,
+  });
+
+  response.data.pipe(writer);
+
   return new Promise((resolve, reject) => {
-    res.body.pipe(fileStream);
-    res.body.on("error", reject);
-    fileStream.on("finish", resolve);
+    writer.on("finish", resolve);
+    writer.on("error", reject);
   });
-};
+}
 
-const readFile = (file) => fs.readFileSync(file, "utf8");
-
-const init = () => {
-  const urls = getUrls();
-  if (!urls) return;
-  const normalizedUrls = normalizeUrls(urls);
-  normalizedUrls.forEach(async (url, i) => {
-    await downloadFile(url, "./downloads/lista" + i + ".m3u")
-      .catch((e) => console.error(`url failed ${url}`))
-      .then((res) => {
-        const path = `./downloads/lista${i}.m3u`;
-        if (!fs.existsSync(path)) return;
-        const fileContent = readFile(path);
-        if (!fileContent.includes("#EXTINF")) {
-          fs.unlink(path, (err) => {
-            if (err) throw err;
-            console.log(`${path} was deleted`);
-          });
-        }
-      });
-  });
-};
-
-init();
+function fileContainsEXTINF(filePath) {
+  try {
+    const fileContent = fs.readFileSync(filePath, "utf8");
+    return fileContent.includes("#EXTINF");
+  } catch (err) {
+    console.error(`Error reading file ${filePath}: ${err}`);
+    return false;
+  }
+}
