@@ -2,7 +2,7 @@ import axios from "axios";
 import fs from "fs";
 
 const FILE_PATH = "list.txt";
-const OUTPUT_DIR = "downloads2";
+const OUTPUT_DIR = "downloads";
 
 fs.readFile(FILE_PATH, "utf8", async (err, data) => {
   if (err) {
