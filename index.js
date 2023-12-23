@@ -1,14 +1,16 @@
 import axios from "axios";
 import fs from "fs";
 
-const FILE_PATH = "list.txt";
-const OUTPUT_DIR = "downloads";
+const FILE_PATH = "list dic.txt";
+const OUTPUT_DIR = FILE_PATH.replace(/\..+/, "") + "-downloads";
 
 fs.readFile(FILE_PATH, "utf8", async (err, data) => {
   if (err) {
     console.error(`Error reading file ${FILE_PATH}: ${err}`);
     return;
   }
+
+  !fs.existsSync(OUTPUT_DIR) && fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
   const urls = data.split("\n");
   urls.forEach(async (urlStr, i) => {
@@ -25,7 +27,7 @@ fs.readFile(FILE_PATH, "utf8", async (err, data) => {
         }
       } catch (error) {
         fs.unlinkSync(filePath);
-        console.error(`Error donwloading ${formattedUrl}: ${error.message}`);
+        console.error(`Error downloading ${formattedUrl}: ${error.message}`);
       }
     } else {
       console.log(`No valid URL: ${urlStr}`);
@@ -52,7 +54,7 @@ async function downloadFile(sourceURL, destFilePath) {
     url: sourceURL,
     method: "GET",
     responseType: "stream",
-    timeout: 10000,
+    timeout: 60000,
   });
 
   response.data.pipe(writer);
