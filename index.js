@@ -4,6 +4,9 @@ import fs from "fs";
 const FILE_PATH = "list dic.txt";
 const OUTPUT_DIR = FILE_PATH.replace(/\..+/, "") + "-downloads";
 
+let found = 0;
+let failed = 0;
+
 fs.readFile(FILE_PATH, "utf8", async (err, data) => {
   if (err) {
     console.error(`Error reading file ${FILE_PATH}: ${err}`);
@@ -21,16 +24,20 @@ fs.readFile(FILE_PATH, "utf8", async (err, data) => {
         await downloadFile(formattedUrl, filePath);
         if (fileContainsEXTINF(filePath)) {
           console.log(`Found: ${formattedUrl}`);
+          found = found + 1;
         } else {
           fs.unlinkSync(filePath);
           console.log(`No content: ${formattedUrl}`);
+          failed = failed + 1;
         }
       } catch (error) {
         fs.unlinkSync(filePath);
         console.error(`Error downloading ${formattedUrl}: ${error.message}`);
+        failed = failed + 1;
       }
     } else {
       console.log(`No valid URL: ${urlStr}`);
+      failed = failed + 1;
     }
   });
 });
@@ -54,7 +61,7 @@ async function downloadFile(sourceURL, destFilePath) {
     url: sourceURL,
     method: "GET",
     responseType: "stream",
-    timeout: 60000,
+    timeout: 20000,
   });
 
   response.data.pipe(writer);
@@ -74,3 +81,9 @@ function fileContainsEXTINF(filePath) {
     return false;
   }
 }
+
+function exitHandler() {
+  console.log({ found, failed });
+}
+
+process.on("exit", exitHandler.bind(null, { cleanup: true }));
